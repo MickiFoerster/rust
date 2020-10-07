@@ -1,0 +1,1 @@
+/mnt/1tbSSD/workspace/go/src/github.com/MickiFoerster/rust/external/Learning-Rust-video/learning_rust-master/s6/barycenter-parallel-rs/src/bodies.rs
