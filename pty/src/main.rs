@@ -1,26 +1,56 @@
 extern crate pty;
 extern crate libc;
 
-use std::ffi::CString;
-use std::io::Read;
-use std::process::{Command};
-
+use std::io::{Read,Write};
+use std::env;
 use pty::fork::*;
+use std::str;
+use std::thread;
+use std::time;
 
 fn main() {
-  let fork = Fork::from_ptmx().unwrap();
+    let args: Vec<String> = env::args().collect();
+    let fork = Fork::from_ptmx().unwrap();
 
-  if let Some(mut master) = fork.is_parent().ok() {
-    // Read output via PTY master
-    let mut output = String::new();
+    let host = match args.len() {
+        2 => &args[1],
+        _ => {
+            eprintln!("syntax error: missing remote host to which we connect");
+            eprintln!("usage: {} <remote host>", args[0]);
+            std::process::exit(1);
+        }
+    };
 
-    match master.read_to_string(&mut output) {
-      Ok(_nread) => println!("child tty is: {}", output.trim()),
-      Err(e)     => panic!("read error: {}", e),
+    println!("try to connect to host {}", host);
+
+    if let Some(mut master) = fork.is_parent().ok() {
+        let reader = thread::spawn(move || {
+            loop {
+                let mut buffer = [0; 4096];
+                match master.read(&mut buffer[..]) {
+                    Ok(n) => {
+                        let output = str::from_utf8(&buffer).unwrap();
+                        print!("{}", output)
+                    },
+                    Err(e)     => panic!("read error: {}", e),
+                }
+            }
+        });
+
+        let writer = thread::spawn(move || {
+            loop {
+                match master.write("hostname\n".as_bytes()) {
+                    Ok(_) => {},
+                    Err(e) => panic!("error: could not write: {}", e),
+                }
+                thread::sleep(time::Duration::from_millis(1000));
+            }
+        });
+
+        reader.join().unwrap();
+        writer.join().unwrap();
     }
-  }
-  else {
-    // Child process just exec `tty`
-    Command::new("ssh").args(&["-p", "22", "user@ssh.example.com", "hostname"]).status().expect("could not execute ssh command");
-  }
+    else {
+        std::process::Command::new("ssh").args(&[host]).status().expect("ssh command failed");
+    }
 }
