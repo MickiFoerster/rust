@@ -1,6 +1,7 @@
 extern crate pty;
 extern crate libc;
 
+use std::sync::mpsc;
 use std::io::{Read,Write};
 use std::env;
 use pty::fork::*;
@@ -24,26 +25,42 @@ fn main() {
     println!("try to connect to host {}", host);
 
     if let Some(mut master) = fork.is_parent().ok() {
+        let (reader_tx, writer_rx) = mpsc::channel();
+        let (writer_tx, reader_rx) = mpsc::channel();
+
         let reader = thread::spawn(move || {
             loop {
-                let mut buffer = [0; 4096];
-                match master.read(&mut buffer[..]) {
-                    Ok(n) => {
-                        let output = str::from_utf8(&buffer).unwrap();
-                        print!("{}", output)
-                    },
-                    Err(e)     => panic!("read error: {}", e),
+                let received = reader_rx.recv().unwrap();
+                println!("reader received {}", received);
+                loop {
+                    let mut buffer = [0; 4096];
+                    match master.read(&mut buffer[..]) {
+                        Ok(_) => {
+                            let output = str::from_utf8(&buffer).unwrap();
+                            print!("{}", output);
+                            if let Some() = output.find("$ ") {
+                                break;
+                            }
+                        },
+                        Err(e)     => panic!("read error: {}", e),
+                    }
                 }
+                reader_tx.send(1).unwrap();
             }
         });
 
         let writer = thread::spawn(move || {
             loop {
                 match master.write("hostname\n".as_bytes()) {
-                    Ok(_) => {},
+                    Ok(_) => {
+                        writer_tx.send(1).unwrap();
+                    },
                     Err(e) => panic!("error: could not write: {}", e),
                 }
-                thread::sleep(time::Duration::from_millis(1000));
+
+                let token = writer_rx.recv().unwrap();
+                println!("writer received {}", token);
+                //thread::sleep(time::Duration::from_millis(1000));
             }
         });
 
