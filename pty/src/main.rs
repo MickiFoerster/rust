@@ -7,11 +7,14 @@ use std::env;
 use pty::fork::*;
 use std::str;
 use std::thread;
-use std::time;
 
 fn main() {
+    let cmds = vec![
+        "hostname", 
+        "cat /proc/cpuinfo"
+    ];
+    let mut i = 0;
     let args: Vec<String> = env::args().collect();
-    let fork = Fork::from_ptmx().unwrap();
 
     let host = match args.len() {
         2 => &args[1],
@@ -24,6 +27,7 @@ fn main() {
 
     println!("try to connect to host {}", host);
 
+    let fork = Fork::from_ptmx().unwrap();
     if let Some(mut master) = fork.is_parent().ok() {
         let (reader_tx, writer_rx) = mpsc::channel();
         let (writer_tx, reader_rx) = mpsc::channel();
@@ -32,26 +36,42 @@ fn main() {
             loop {
                 let received = reader_rx.recv().unwrap();
                 println!("reader received {}", received);
+                if received == 0 { // found end signal?
+                    break;
+                }
                 loop {
                     let mut buffer = [0; 4096];
                     match master.read(&mut buffer[..]) {
                         Ok(_) => {
                             let output = str::from_utf8(&buffer).unwrap();
                             print!("{}", output);
-                            if let Some() = output.find("$ ") {
+                            if let Some(_) = output.find("\r\nSTOP") {
                                 break;
                             }
                         },
-                        Err(e)     => panic!("read error: {}", e),
+                        Err(e)     => { 
+                            println!("read error: {}", e);
+                            break;
+                        },
                     }
                 }
                 reader_tx.send(1).unwrap();
             }
+            reader_tx.send(0).unwrap();
         });
 
         let writer = thread::spawn(move || {
             loop {
-                match master.write("hostname\n".as_bytes()) {
+                if i >= cmds.len() {
+                    println!("writer done");
+                    writer_tx.send(0).unwrap();
+                    break;
+                }
+                let cmd = cmds[i];
+                i += 1;
+                println!("next command: {}", cmd);
+
+                match master.write(format!("{}; echo STOP\n", cmd).as_bytes()) {
                     Ok(_) => {
                         writer_tx.send(1).unwrap();
                     },
@@ -60,7 +80,15 @@ fn main() {
 
                 let token = writer_rx.recv().unwrap();
                 println!("writer received {}", token);
-                //thread::sleep(time::Duration::from_millis(1000));
+            }
+
+            // wait for reader to finish
+            println!("writer waits for END token ...");
+            let token = writer_rx.recv().unwrap();
+            if token == 0 {
+                println!("writer received END token");
+            } else {
+                panic!("error: unexpected token");
             }
         });
 
