@@ -11,7 +11,8 @@ use std::thread;
 fn main() {
     let cmds = vec![
         "hostname", 
-        "cat /proc/cpuinfo"
+        "cat /proc/cpuinfo",
+        "cat /proc/meminfo",
     ];
     let mut i = 0;
     let args: Vec<String> = env::args().collect();
@@ -30,13 +31,13 @@ fn main() {
     let fork = Fork::from_ptmx().unwrap();
     if let Some(mut master) = fork.is_parent().ok() {
         let (reader_tx, writer_rx) = mpsc::channel();
-        let (writer_tx, reader_rx) = mpsc::channel();
+        let (writer_tx, reader_rx) = mpsc::channel::<String>();
 
         let reader = thread::spawn(move || {
             loop {
-                let received = reader_rx.recv().unwrap();
-                println!("reader received {}", received);
-                if received == 0 { // found end signal?
+                let prompt = reader_rx.recv().unwrap();
+                println!("reader received {}", prompt);
+                if prompt == "" { // found end signal?
                     break;
                 }
                 loop {
@@ -45,7 +46,9 @@ fn main() {
                         Ok(_) => {
                             let output = str::from_utf8(&buffer).unwrap();
                             print!("{}", output);
-                            if let Some(_) = output.find("\r\nSTOP") {
+                            let pattern = format!("\n{}", prompt);
+                            if let Some(_) = output.find(&pattern) {
+                                println!("reader found {}", prompt);
                                 break;
                             }
                         },
@@ -64,16 +67,17 @@ fn main() {
             loop {
                 if i >= cmds.len() {
                     println!("writer done");
-                    writer_tx.send(0).unwrap();
+                    writer_tx.send("".to_string()).unwrap();
                     break;
                 }
                 let cmd = cmds[i];
                 i += 1;
                 println!("next command: {}", cmd);
-
-                match master.write(format!("{}; echo STOP\n", cmd).as_bytes()) {
+                let prompt = format!("ASDF{}", i);
+                master.write(format!("PS1={}\n", prompt).as_bytes()).unwrap();
+                match master.write(format!("{}\n", cmd).as_bytes()) {
                     Ok(_) => {
-                        writer_tx.send(1).unwrap();
+                        writer_tx.send(prompt).unwrap();
                     },
                     Err(e) => panic!("error: could not write: {}", e),
                 }
