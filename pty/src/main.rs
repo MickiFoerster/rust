@@ -35,7 +35,7 @@ fn main() {
 
         let reader = thread::spawn(move || {
             loop {
-                let prompt = reader_rx.recv().unwrap();
+                let mut prompt = reader_rx.recv().unwrap();
                 println!("reader received {}", prompt);
                 if prompt == "" { // found end signal?
                     break;
@@ -51,45 +51,53 @@ fn main() {
                             Ok(n) => {
                                 read_output = str::from_utf8(&buffer[0..n]).unwrap().to_string();
 
-// Solution should:
-// - read line by line 
-// - first phase output should not go into outer variable
-// - second phase pattern found means command output starts now
-// - when third pattern is found command output has finished
+                                // Solution should:
+                                // - process line by line 
+                                // - phase 1: look for assignment of prompt view
+                                // - phase 2: look for prompt with current command
+                                // - phase 3: look for prompt which represents the end of the command output
 
-                                print!("phase {}: read_output: {}", phase, read_output);
-                                match phase {
-                                    1 => {
-                                        let pattern = format!("\nPS1={}", prompt);
-                                        if let Some(i) = read_output.find(&pattern) {
-                                            println!("phase {}: reader found {}", phase, pattern);
-                                            phase = 2;
-                                            let len = pattern.chars().count();
-                                            print!("phase {}: add {}", phase, &read_output[0..i+len]);
-                                            print!("phase {}: new buffer {}", phase, &read_output[i+len..]);
-                                            output.push_str(&read_output[0..i+len]);
-                                            read_output = read_output[i+len..].to_string();
-                                            std::process::exit(1);
-                                        }
-                                    },
-                                    2 => {
-                                        let pattern = format!("\n{}", prompt);
-                                        print!("phase {}: reader looks for '{}'", phase, pattern);
-                                        if let Some(_) = read_output.find(&pattern) {
-                                            println!("phase {}: reader found {}", phase, pattern);
-                                            phase = 3;
-                                        }
-                                    },
-                                    3 => {
-                                        let pattern = format!("\n{}", prompt);
-                                        print!("phase {}: reader looks for '{}'", phase, pattern);
-                                        if let Some(_) = read_output.find(&pattern) {
-                                            println!("phase {}: reader found {}", phase, pattern);
-                                            break;
-                                        }
-                                    },
-                                    _ => panic!("unexpected case: phase == {}\n", phase),
+                                for line in read_output.lines() {
+                                    println!("{}:line:{}", phase, line);
+                                    match phase {
+                                        1 => { // look for PS1= input
+                                            let pattern = format!("{}", prompt);
+                                            //println!("phase {}: reader looks for '{}'", phase, pattern);
+                                            if let Some(_) = read_output.find(&pattern) {
+                                                //println!("phase {}: reader found {}\n", phase, pattern);
+                                                reader_tx.send(1).unwrap();
+                                                phase = 2;
+                                                prompt = reader_rx.recv().unwrap();
+                                                println!("reader received command: {}", prompt);
+                                            }
+                                        },
+                                        2 => { 
+                                            let pattern = format!("{}", prompt);
+                                            //println!("phase {}: reader looks for '{}'", phase, pattern);
+                                            if let Some(_) = read_output.find(&pattern) {
+                                                //println!("phase {}: reader found {}\n", phase, pattern);
+                                                reader_tx.send(2).unwrap();
+                                                println!("reader waits for signal that linefeed was sent ...");
+                                                prompt = reader_rx.recv().unwrap();
+                                                println!("reader received command: {}", prompt);
+                                                phase = 3;
+                                            }
+                                        },
+                                        3 => {
+                                            let pattern = format!("{}", prompt);
+                                            println!("phase {}: reader looks for '{}'", phase, pattern);
+                                            if let Some(_) = read_output.find(&pattern) {
+                                                println!("phase {}: reader found {}", phase, pattern);
+                                                println!("end of reading output");
+                                                break;
+                                            }
+                                        },
+                                        _ => panic!("unexpected case: phase == {}\n", phase),
+                                    }
                                 }
+                                //println!("loop finished");
+                                //std::process::exit(1);
+
                             },
                             Err(e)     => { 
                                 panic!("read error: {}", e); 
@@ -112,17 +120,28 @@ fn main() {
                 let cmd = cmds[i];
                 i += 1;
                 println!("next command: {}", cmd);
-                let prompt = format!("ASDF{}", i);
-                master.write(format!("PS1={}\n", prompt).as_bytes()).unwrap();
-                match master.write(format!("{}\n", cmd).as_bytes()) {
-                    Ok(_) => {
-                        writer_tx.send(prompt).unwrap();
-                    },
-                    Err(e) => panic!("error: could not write: {}", e),
-                }
 
+                // Define prompt
+                let prompt = format!("ASDF{}", i);
+                writer_tx.send(prompt.to_string()).unwrap();
+                master.write(format!("PS1={}", prompt).as_bytes()).expect("could not write");
+
+                println!("writer waiting ...");
                 let token = writer_rx.recv().unwrap();
-                println!("writer received {}", token);
+                println!("writer should have received 1: {}", token);
+
+                writer_tx.send(format!("{}{}", &prompt, cmd).to_string()).unwrap();
+                master.write(format!("\n{}", cmd).as_bytes()).expect("could not write");
+
+                println!("writer waiting ...");
+                let token = writer_rx.recv().unwrap();
+                println!("writer should have received 2: {}", token);
+                master.write("\n".as_bytes()).expect("could not write");
+                writer_tx.send(prompt.to_string()).unwrap();
+
+                println!("writer waiting for end of command output ...");
+                let token = writer_rx.recv().unwrap();
+                println!("writer should have received 3: {}", token);
             }
 
             // wait for reader to finish
