@@ -40,22 +40,61 @@ fn main() {
                 if prompt == "" { // found end signal?
                     break;
                 }
+                // Now, read until prompt provided by writer is found.
+                let mut output = String::new();
                 loop {
-                    let mut buffer = [0; 4096];
-                    match master.read(&mut buffer[..]) {
-                        Ok(_) => {
-                            let output = str::from_utf8(&buffer).unwrap();
-                            print!("{}", output);
-                            let pattern = format!("\n{}", prompt);
-                            if let Some(_) = output.find(&pattern) {
-                                println!("reader found {}", prompt);
-                                break;
-                            }
-                        },
-                        Err(e)     => { 
-                            println!("read error: {}", e);
-                            break;
-                        },
+                    let mut read_output: String;
+                    let mut phase = 1;
+                    loop {
+                        let mut buffer = [0; 4096];
+                        match master.read(&mut buffer[..]) {
+                            Ok(n) => {
+                                read_output = str::from_utf8(&buffer[0..n]).unwrap().to_string();
+
+// Solution should:
+// - read line by line 
+// - first phase output should not go into outer variable
+// - second phase pattern found means command output starts now
+// - when third pattern is found command output has finished
+
+                                print!("phase {}: read_output: {}", phase, read_output);
+                                match phase {
+                                    1 => {
+                                        let pattern = format!("\nPS1={}", prompt);
+                                        if let Some(i) = read_output.find(&pattern) {
+                                            println!("phase {}: reader found {}", phase, pattern);
+                                            phase = 2;
+                                            let len = pattern.chars().count();
+                                            print!("phase {}: add {}", phase, &read_output[0..i+len]);
+                                            print!("phase {}: new buffer {}", phase, &read_output[i+len..]);
+                                            output.push_str(&read_output[0..i+len]);
+                                            read_output = read_output[i+len..].to_string();
+                                            std::process::exit(1);
+                                        }
+                                    },
+                                    2 => {
+                                        let pattern = format!("\n{}", prompt);
+                                        print!("phase {}: reader looks for '{}'", phase, pattern);
+                                        if let Some(_) = read_output.find(&pattern) {
+                                            println!("phase {}: reader found {}", phase, pattern);
+                                            phase = 3;
+                                        }
+                                    },
+                                    3 => {
+                                        let pattern = format!("\n{}", prompt);
+                                        print!("phase {}: reader looks for '{}'", phase, pattern);
+                                        if let Some(_) = read_output.find(&pattern) {
+                                            println!("phase {}: reader found {}", phase, pattern);
+                                            break;
+                                        }
+                                    },
+                                    _ => panic!("unexpected case: phase == {}\n", phase),
+                                }
+                            },
+                            Err(e)     => { 
+                                panic!("read error: {}", e); 
+                            },
+                        }
                     }
                 }
                 reader_tx.send(1).unwrap();
