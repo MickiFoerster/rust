@@ -73,13 +73,13 @@ fn main() {
                                         },
                                         2 => { 
                                             let pattern = format!("{}", prompt);
-                                            //println!("phase {}: reader looks for '{}'", phase, pattern);
+                                            println!("phase {}: reader looks for '{}'", phase, pattern);
                                             if let Some(_) = read_output.find(&pattern) {
-                                                //println!("phase {}: reader found {}\n", phase, pattern);
+                                                println!("phase {}: reader found {}\n", phase, pattern);
                                                 reader_tx.send(2).unwrap();
                                                 println!("reader waits for signal that linefeed was sent ...");
-                                                prompt = reader_rx.recv().unwrap();
-                                                println!("reader received command: {}", prompt);
+                                                reader_rx.recv().unwrap();
+                                                println!("reader received that linefeed was sent");
                                                 phase = 3;
                                             }
                                         },
@@ -87,8 +87,18 @@ fn main() {
                                             let pattern = format!("{}", prompt);
                                             println!("phase {}: reader looks for '{}'", phase, pattern);
                                             if let Some(_) = read_output.find(&pattern) {
-                                                println!("phase {}: reader found {}", phase, pattern);
+                                                println!("phase {}: reader found echo of command {}", phase, pattern);
+                                                prompt = reader_rx.recv().unwrap();
+                                                println!("reader received prompt before phase 4: {}", prompt);
+                                                phase = 4;
+                                            }
+                                        },
+                                        4 => {
+                                            let pattern = format!("{}", prompt);
+                                            println!("phase {}: reader looks for '{}'", phase, pattern);
+                                            if let Some(_) = read_output.find(&pattern) {
                                                 println!("end of reading output");
+                                                phase = 4;
                                                 break;
                                             }
                                         },
