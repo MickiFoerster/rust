@@ -35,12 +35,12 @@ fn main() {
 
         let reader = thread::spawn(move || {
             loop {
-                let mut prompt = reader_rx.recv().unwrap();
-                println!("reader received {}", prompt);
-                if prompt == "" { // found end signal?
+                let cmd = reader_rx.recv().unwrap();
+                println!("reader received {}", cmd);
+                if cmd == "" { // found end signal?
+                    println!("reader done since received command is empty");
                     break;
                 }
-                // Now, read until prompt provided by writer is found.
                 let mut output = String::new();
                 loop {
                     let mut read_output: String;
@@ -130,18 +130,8 @@ fn main() {
                 let cmd = cmds[i];
                 i += 1;
                 println!("next command: {}", cmd);
-
-                // Define prompt
-                let prompt = format!("ASDF{}", i);
-                writer_tx.send(prompt.to_string()).unwrap();
-                master.write(format!("PS1={}", prompt).as_bytes()).expect("could not write");
-
-                println!("writer waiting ...");
-                let token = writer_rx.recv().unwrap();
-                println!("writer should have received 1: {}", token);
-
-                writer_tx.send(format!("{}{}", &prompt, cmd).to_string()).unwrap();
-                master.write(format!("\n{}", cmd).as_bytes()).expect("could not write");
+                writer_tx.send(cmd.to_string()).expect("could not send to reader");
+                master.write(cmd.as_bytes()).expect("could not write to master");
 
                 println!("writer waiting ...");
                 let token = writer_rx.recv().unwrap();
