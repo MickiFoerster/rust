@@ -41,80 +41,10 @@ fn main() {
                     println!("reader done since received command is empty");
                     break;
                 }
-                let mut output = String::new();
-                loop {
-                    let mut read_output: String;
-                    let mut phase = 1;
-                    loop {
-                        let mut buffer = [0; 4096];
-                        match master.read(&mut buffer[..]) {
-                            Ok(n) => {
-                                read_output = str::from_utf8(&buffer[0..n]).unwrap().to_string();
 
-                                // Solution should:
-                                // - process line by line 
-                                // - phase 1: look for assignment of prompt view
-                                // - phase 2: look for prompt with current command
-                                // - phase 3: look for prompt which represents the end of the command output
+                read_command_output(master).expect("reading output failed");
 
-                                for line in read_output.lines() {
-                                    println!("{}:line:{}", phase, line);
-                                    match phase {
-                                        1 => { // look for PS1= input
-                                            let pattern = format!("{}", prompt);
-                                            //println!("phase {}: reader looks for '{}'", phase, pattern);
-                                            if let Some(_) = read_output.find(&pattern) {
-                                                //println!("phase {}: reader found {}\n", phase, pattern);
-                                                reader_tx.send(1).unwrap();
-                                                phase = 2;
-                                                prompt = reader_rx.recv().unwrap();
-                                                println!("reader received command: {}", prompt);
-                                            }
-                                        },
-                                        2 => { 
-                                            let pattern = format!("{}", prompt);
-                                            println!("phase {}: reader looks for '{}'", phase, pattern);
-                                            if let Some(_) = read_output.find(&pattern) {
-                                                println!("phase {}: reader found {}\n", phase, pattern);
-                                                reader_tx.send(2).unwrap();
-                                                println!("reader waits for signal that linefeed was sent ...");
-                                                reader_rx.recv().unwrap();
-                                                println!("reader received that linefeed was sent");
-                                                phase = 3;
-                                            }
-                                        },
-                                        3 => {
-                                            let pattern = format!("{}", prompt);
-                                            println!("phase {}: reader looks for '{}'", phase, pattern);
-                                            if let Some(_) = read_output.find(&pattern) {
-                                                println!("phase {}: reader found echo of command {}", phase, pattern);
-                                                prompt = reader_rx.recv().unwrap();
-                                                println!("reader received prompt before phase 4: {}", prompt);
-                                                phase = 4;
-                                            }
-                                        },
-                                        4 => {
-                                            let pattern = format!("{}", prompt);
-                                            println!("phase {}: reader looks for '{}'", phase, pattern);
-                                            if let Some(_) = read_output.find(&pattern) {
-                                                println!("end of reading output");
-                                                phase = 4;
-                                                break;
-                                            }
-                                        },
-                                        _ => panic!("unexpected case: phase == {}\n", phase),
-                                    }
-                                }
-                                //println!("loop finished");
-                                //std::process::exit(1);
 
-                            },
-                            Err(e)     => { 
-                                panic!("read error: {}", e); 
-                            },
-                        }
-                    }
-                }
                 reader_tx.send(1).unwrap();
             }
             reader_tx.send(0).unwrap();
@@ -159,5 +89,82 @@ fn main() {
     }
     else {
         std::process::Command::new("ssh").args(&[host]).status().expect("ssh command failed");
+    }
+}
+
+fn read_command_output(&master: std::pty::fork::master) -> Result<String> {
+    let mut output = String::new();
+    loop {
+        let mut read_output: String;
+        let mut phase = 1;
+        loop {
+            let mut buffer = [0; 4096];
+            match master.read(&mut buffer[..]) {
+                Ok(n) => {
+                    read_output = str::from_utf8(&buffer[0..n]).unwrap().to_string();
+
+                    // Solution should:
+                    // - process line by line 
+                    // - phase 1: look for assignment of prompt view
+                    // - phase 2: look for prompt with current command
+                    // - phase 3: look for prompt which represents the end of the command output
+
+                    for line in read_output.lines() {
+                        println!("{}:line:{}", phase, line);
+                        match phase {
+                            1 => { // look for PS1= input
+                                let pattern = format!("{}", prompt);
+                                //println!("phase {}: reader looks for '{}'", phase, pattern);
+                                if let Some(_) = read_output.find(&pattern) {
+                                    //println!("phase {}: reader found {}\n", phase, pattern);
+                                    reader_tx.send(1).unwrap();
+                                    phase = 2;
+                                    prompt = reader_rx.recv().unwrap();
+                                    println!("reader received command: {}", prompt);
+                                }
+                            },
+                            2 => { 
+                                let pattern = format!("{}", prompt);
+                                println!("phase {}: reader looks for '{}'", phase, pattern);
+                                if let Some(_) = read_output.find(&pattern) {
+                                    println!("phase {}: reader found {}\n", phase, pattern);
+                                    reader_tx.send(2).unwrap();
+                                    println!("reader waits for signal that linefeed was sent ...");
+                                    reader_rx.recv().unwrap();
+                                    println!("reader received that linefeed was sent");
+                                    phase = 3;
+                                }
+                            },
+                            3 => {
+                                let pattern = format!("{}", prompt);
+                                println!("phase {}: reader looks for '{}'", phase, pattern);
+                                if let Some(_) = read_output.find(&pattern) {
+                                    println!("phase {}: reader found echo of command {}", phase, pattern);
+                                    prompt = reader_rx.recv().unwrap();
+                                    println!("reader received prompt before phase 4: {}", prompt);
+                                    phase = 4;
+                                }
+                            },
+                            4 => {
+                                let pattern = format!("{}", prompt);
+                                println!("phase {}: reader looks for '{}'", phase, pattern);
+                                if let Some(_) = read_output.find(&pattern) {
+                                    println!("end of reading output");
+                                    phase = 4;
+                                    break;
+                                }
+                            },
+                            _ => panic!("unexpected case: phase == {}\n", phase),
+                        }
+                    }
+                    //println!("loop finished");
+                    //std::process::exit(1);
+
+                },
+                Err(e)     => { 
+                    panic!("read error: {}", e); 
+                },
+            }
+        }
     }
 }
