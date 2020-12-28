@@ -14,7 +14,7 @@ fn main() {
         "cat /proc/cpuinfo",
         "cat /proc/meminfo",
     ];
-    let mut i = 0;
+    let mut current_cmd = 0;
     let args: Vec<String> = env::args().collect();
 
     let host = match args.len() {
@@ -35,52 +35,39 @@ fn main() {
 
         let reader = thread::spawn(move || {
             loop {
-                let cmd = reader_rx.recv().unwrap();
-                println!("reader received {}", cmd);
-                if cmd == "" { // found end signal?
-                    println!("reader done since received command is empty");
-                    break;
-                }
+                read_until_login_finished(&mut master);
 
-                read_command_output(master).expect("reading output failed");
-
+                read_command_output(&mut master).expect("reading output failed");
 
                 reader_tx.send(1).unwrap();
             }
-            reader_tx.send(0).unwrap();
+            //reader_tx.send(0).unwrap();
         });
 
         let writer = thread::spawn(move || {
             loop {
-                if i >= cmds.len() {
+                if current_cmd >= cmds.len() {
                     println!("writer done");
                     writer_tx.send("".to_string()).unwrap();
                     break;
                 }
-                let cmd = cmds[i];
-                i += 1;
+
+                // phase 0: wait for login
+                println!("writer is waiting ...");
+                let signal = writer_rx.recv().unwrap();
+                println!("writer received signal from reader: {}", signal);
+
+                let cmd = cmds[current_cmd];
+                current_cmd += 1;
                 println!("next command: {}", cmd);
-                writer_tx.send(cmd.to_string()).expect("could not send to reader");
-                master.write(cmd.as_bytes()).expect("could not write to master");
+                //writer_tx.send(cmd.to_string()).expect("could not send to reader");
+                //master.write(cmd.as_bytes()).expect("could not write to master");
 
-                println!("writer waiting ...");
-                let token = writer_rx.recv().unwrap();
-                println!("writer should have received 2: {}", token);
-                master.write("\n".as_bytes()).expect("could not write");
-                writer_tx.send(prompt.to_string()).unwrap();
-
-                println!("writer waiting for end of command output ...");
-                let token = writer_rx.recv().unwrap();
-                println!("writer should have received 3: {}", token);
-            }
-
-            // wait for reader to finish
-            println!("writer waits for END token ...");
-            let token = writer_rx.recv().unwrap();
-            if token == 0 {
-                println!("writer received END token");
-            } else {
-                panic!("error: unexpected token");
+                //println!("writer waiting ...");
+                //let token = writer_rx.recv().unwrap();
+                //println!("writer should have received 2: {}", token);
+                //master.write("\n".as_bytes()).expect("could not write");
+                //writer_tx.send(prompt.to_string()).unwrap();
             }
         });
 
@@ -92,74 +79,71 @@ fn main() {
     }
 }
 
-fn read_command_output(&master: std::pty::fork::master) -> Result<String> {
+fn read_until_login_finished(master: &mut pty::fork::Master) {
+    let mut buffer = [0; 4096];
+    match master.read(&mut buffer[..]) {
+        Ok(n) => {
+            println!("reader: read {} bytes", n);
+            let read_output = str::from_utf8(&buffer[0..n]).unwrap().to_string();
+            for line in read_output.lines() {
+                println!("line:{}", line);
+            }
+        }
+        Err(e)     => { 
+            panic!("read error: {}", e); 
+        },
+    }
+}
+
+fn read_command_output(master: &mut pty::fork::Master) -> Result<String> {
     let mut output = String::new();
+    println!("reader: starting ...");
     loop {
         let mut read_output: String;
-        let mut phase = 1;
+        let mut phase = 0;
         loop {
             let mut buffer = [0; 4096];
+            println!("reader: read from master");
             match master.read(&mut buffer[..]) {
                 Ok(n) => {
+                    println!("reader: read {} bytes", n);
                     read_output = str::from_utf8(&buffer[0..n]).unwrap().to_string();
 
-                    // Solution should:
                     // - process line by line 
-                    // - phase 1: look for assignment of prompt view
-                    // - phase 2: look for prompt with current command
-                    // - phase 3: look for prompt which represents the end of the command output
+                    // - phase 0: writer <-- signal ---- reader (login finished)
+                    // - phase 1: writer --- command --> reader
+                    // - phase 2: writer <-- signal  --  reader (command received)
+                    // - phase 3: writer --- \n      --> reader (start reading output from command
+                    //                                   waits for end of reading
+                    //                                   looks for suffix "$ "
+                    // - phase 4: writer <-- signal  --  reader (command execution finished)
+                    // - jump to phase 1 again
 
                     for line in read_output.lines() {
-                        println!("{}:line:{}", phase, line);
                         match phase {
+                            0 => {
+                                println!("{}:line:{}", phase, line);
+                            }
                             1 => { // look for PS1= input
-                                let pattern = format!("{}", prompt);
-                                //println!("phase {}: reader looks for '{}'", phase, pattern);
-                                if let Some(_) = read_output.find(&pattern) {
-                                    //println!("phase {}: reader found {}\n", phase, pattern);
-                                    reader_tx.send(1).unwrap();
-                                    phase = 2;
-                                    prompt = reader_rx.recv().unwrap();
-                                    println!("reader received command: {}", prompt);
-                                }
+                                //let pattern = format!("{}", prompt);
+                                ////println!("phase {}: reader looks for '{}'", phase, pattern);
+                                //if let Some(_) = read_output.find(&pattern) {
+                                //    //println!("phase {}: reader found {}\n", phase, pattern);
+                                //    reader_tx.send(1).unwrap();
+                                //    phase = 2;
+                                //    prompt = reader_rx.recv().unwrap();
+                                //    println!("reader received command: {}", prompt);
+                                //}
                             },
                             2 => { 
-                                let pattern = format!("{}", prompt);
-                                println!("phase {}: reader looks for '{}'", phase, pattern);
-                                if let Some(_) = read_output.find(&pattern) {
-                                    println!("phase {}: reader found {}\n", phase, pattern);
-                                    reader_tx.send(2).unwrap();
-                                    println!("reader waits for signal that linefeed was sent ...");
-                                    reader_rx.recv().unwrap();
-                                    println!("reader received that linefeed was sent");
-                                    phase = 3;
-                                }
                             },
                             3 => {
-                                let pattern = format!("{}", prompt);
-                                println!("phase {}: reader looks for '{}'", phase, pattern);
-                                if let Some(_) = read_output.find(&pattern) {
-                                    println!("phase {}: reader found echo of command {}", phase, pattern);
-                                    prompt = reader_rx.recv().unwrap();
-                                    println!("reader received prompt before phase 4: {}", prompt);
-                                    phase = 4;
-                                }
                             },
                             4 => {
-                                let pattern = format!("{}", prompt);
-                                println!("phase {}: reader looks for '{}'", phase, pattern);
-                                if let Some(_) = read_output.find(&pattern) {
-                                    println!("end of reading output");
-                                    phase = 4;
-                                    break;
-                                }
                             },
                             _ => panic!("unexpected case: phase == {}\n", phase),
                         }
                     }
-                    //println!("loop finished");
-                    //std::process::exit(1);
-
                 },
                 Err(e)     => { 
                     panic!("read error: {}", e); 
