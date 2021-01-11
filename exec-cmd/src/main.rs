@@ -13,6 +13,15 @@ fn main() {
     };
     println!("command stdout: {}", s);
 
+    let output = Command::new("ls")
+            .args(&["-1", "/proc"])
+            .output()
+            .expect("failed to execute 'ls'");
+    let output_as_string = str::from_utf8(&output.stdout).unwrap();
+    for w in output_as_string.split("\n") {
+        println!("ls: {}", w);
+    }
+
     // unknown command
     let output = Command::new("unknowncommand")
             .args(&["--verbose"])
