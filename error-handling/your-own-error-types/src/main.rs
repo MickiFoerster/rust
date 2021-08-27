@@ -1,6 +1,6 @@
 use serde_derive::*;
 
-
+#[derive(Debug)]
 pub enum TransactionError {
     LoadError(std::io::Error),
     ParseError(serde_json::Error),
@@ -35,7 +35,10 @@ fn main() {
 }
 
 fn get_transactions(fname: &str) -> Result<Vec<Transaction>, TransactionError> {
+    /*
     std::fs::read_to_string(fname)
         .map_err(|e| e.into())
         .and_then(|ld| serde_json::from_str(&ld).map_err(|e| e.into()))
+    */
+    Ok(serde_json::from_str(&std::fs::read_to_string(fname)?)?)
 }
