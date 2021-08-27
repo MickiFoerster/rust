@@ -8,8 +8,8 @@ pub struct Transaction {
 }
 
 fn main() {
-    println!("Hello, world!");
-    let trans = get_transactions("test_data/transactions.json").expect("Could not load transactions");
+    let path = "test_data/transactions.json";
+    let trans = get_transactions(path).expect("Could not load transactions");
 
     for t in trans {
         println!("{:?}", t);
