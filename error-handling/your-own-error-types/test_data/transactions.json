@@ -4,5 +4,5 @@
     {"from": "C", "to": "D", "amount": 4},
     {"from": "D", "to": "E", "amount": 1234},
     {"from": "E", "to": "A", "amount": 334},
-    {"from": "F", "to": "B", "amount": 555},
+    {"from": "F", "to": "B", "amount": 555}
 ]
