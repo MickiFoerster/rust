@@ -15,7 +15,7 @@ fn main() -> Result<()> {
     loop {
         let n = match f.read(&mut buffer) {
             Ok(0) => {
-                println!("Zero bytes read. So, we assume EOF has been reached.");
+                println!("0 bytes read. So, we assume EOF has been reached.");
                 break;
             }
             Ok(n) => n,
@@ -24,10 +24,12 @@ fn main() -> Result<()> {
                 return Err(e);
             }
         };
+        /*
         for i in 0..n {
             print!("0x{:02x?}  ", buffer[i]);
         }
-        println!();
+        */
+        print!("{}", String::from_utf8(buffer[0..n].to_vec()).expect("Cannot convert bytes to string"));
     }
     drop(f);
 
