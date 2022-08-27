@@ -23,7 +23,7 @@ fn insertion_sort(v: &mut Vec<u8>) {
         let mut j = i;
         while j > 0 && v[j - 1] > t {
             v[j] = v[j - 1];
-            j = j - 1;
+            j -= 1;
         }
         v[j] = t
     }
@@ -48,7 +48,7 @@ fn insertion_search_sort_with_binary_search(v: &mut Vec<u8>) {
         let mut j = i;
         while j > r {
             v[j] = v[j - 1];
-            j = j - 1;
+            j -= 1;
         }
         v[r] = t
     }
