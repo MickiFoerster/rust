@@ -1,5 +1,6 @@
+use axum::http::header::SET_COOKIE;
 use axum::{
-    response::{Headers, IntoResponse, Redirect},
+    response::{AppendHeaders, IntoResponse, Redirect},
     routing::get,
     Router,
 };
@@ -26,8 +27,6 @@ async fn main() {
 async fn login() -> impl IntoResponse {
     use reqwest::header::USER_AGENT;
 
-    let headers = Headers(vec![("X-Foo", "foo")]);
-
     let client = reqwest::Client::new();
     let res = client
         .get("https://www.google.com/")
@@ -39,7 +38,10 @@ async fn login() -> impl IntoResponse {
     println!("headers:");
     println!("{:#?}", res.headers());
 
-    res.text().await.unwrap()
+    (
+        AppendHeaders([(SET_COOKIE, "foo=bar"), (SET_COOKIE, "baz=qux")]),
+        res.text().await.unwrap(),
+    )
 }
 
 async fn redirect_endpoint() -> String {
