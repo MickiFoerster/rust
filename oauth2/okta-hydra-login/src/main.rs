@@ -1,14 +1,21 @@
-use axum::http::header::SET_COOKIE;
+use axum::http::header::{CACHE_CONTROL, SET_COOKIE};
 use axum::{
     response::{AppendHeaders, IntoResponse, Redirect},
     routing::get,
     Router,
 };
+use dotenv::dotenv;
 use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+
+    dotenv().ok();
+
+    tracing::debug!("CLIENT_ID: {}", std::env::var("CLIENT_ID").unwrap());
+    tracing::debug!("CLIENT_SECRET: {}", std::env::var("CLIENT_SECRET").unwrap());
+    tracing::debug!("ISSUER: {}", std::env::var("ISSUER").unwrap());
 
     let app = Router::new()
         .route("/", get(|| async { Redirect::permanent("/login") }))
@@ -34,12 +41,15 @@ async fn login() -> impl IntoResponse {
         .send()
         .await
         .unwrap();
-    println!("status: {}", res.status());
-    println!("headers:");
-    println!("{:#?}", res.headers());
+    tracing::debug!("status: {}", res.status());
+    tracing::debug!("headers:");
+    tracing::debug!("{:#?}", res.headers());
 
     (
-        AppendHeaders([(SET_COOKIE, "foo=bar"), (SET_COOKIE, "baz=qux")]),
+        AppendHeaders([
+            (CACHE_CONTROL, "no-cache"),
+            (SET_COOKIE, "mycookie=mycookievalue"),
+        ]),
         res.text().await.unwrap(),
     )
 }
