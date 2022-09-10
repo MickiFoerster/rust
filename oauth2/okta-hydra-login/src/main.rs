@@ -1,11 +1,15 @@
-use axum::http::header::{CACHE_CONTROL, SET_COOKIE};
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, SET_COOKIE};
 use axum::{
-    response::{AppendHeaders, IntoResponse, Redirect},
+    response::{AppendHeaders, IntoResponse, Redirect, Response},
     routing::get,
-    Router,
+    Json, Router,
 };
 use dotenv::dotenv;
+use http::StatusCode;
+use serde_json::json;
 use std::net::SocketAddr;
+
+mod login;
 
 #[tokio::main]
 async fn main() {
@@ -32,6 +36,13 @@ async fn main() {
 }
 
 async fn login() -> impl IntoResponse {
+    (
+        [(CONTENT_TYPE, "text/html; charset=UTF-8")],
+        login::LOGIN_PAGE_HTML.into_response(),
+    )
+}
+
+async fn redirect_endpoint() -> impl IntoResponse {
     use reqwest::header::USER_AGENT;
 
     let client = reqwest::Client::new();
@@ -52,10 +63,6 @@ async fn login() -> impl IntoResponse {
         ]),
         res.text().await.unwrap(),
     )
-}
-
-async fn redirect_endpoint() -> String {
-    "".to_string()
 }
 async fn logout() -> String {
     "".to_string()
