@@ -16,3 +16,5 @@ http = "*"
 dotenv = "*"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
+gtmpl = "*"
+anyhow = "*"

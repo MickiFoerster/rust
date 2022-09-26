@@ -26,6 +26,26 @@ pub const LOGIN_PAGE_HTML: &'static str = r#"
 <h1>OAuth2 Login</h1>
 Please login with your credentials:
     <div id="sign-in-widget"></div>
-    OKTA_CREDENTIALS_SCRIPT
+<script type="text/javascript">
+    var config = { };
+    config.baseUrl = "{{ .baseURL }}";
+    config.clientId = "{{ .clientID }}";
+    config.redirectUri = "{{ .redirectUri }}";
+    config.authParams = {
+        issuer: "{{ .issuer }}",
+    responseType: 'code',
+    state: "{{ .state }}" || false,
+    display: 'page',
+    scopes: ['openid', 'profile', 'email'],
+    nonce: '{{ .nonce }}',
+    pkce: false,
+    };
+    new OktaSignIn(config).renderEl(
+    {el: '#sign-in-widget' },
+    function (res) {
+    }
+    );
+</script>
+
 </body>
 "#;

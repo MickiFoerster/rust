@@ -1,3 +1,4 @@
+use anyhow::Result;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, SET_COOKIE};
 use axum::{
     response::{AppendHeaders, IntoResponse, Redirect, Response},
@@ -7,6 +8,9 @@ use axum::{
 use dotenv::dotenv;
 use http::StatusCode;
 use serde_json::json;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{self, BufReader};
 use std::net::SocketAddr;
 
 mod login;
@@ -38,7 +42,8 @@ async fn main() {
 async fn login() -> impl IntoResponse {
     (
         [(CONTENT_TYPE, "text/html; charset=UTF-8")],
-        login::LOGIN_PAGE_HTML.into_response(),
+        //login::LOGIN_PAGE_HTML.into_response(),
+        load_login_page().into_response(),
     )
 }
 
@@ -64,6 +69,22 @@ async fn redirect_endpoint() -> impl IntoResponse {
         res.text().await.unwrap(),
     )
 }
+
 async fn logout() -> String {
     "".to_string()
+}
+
+fn load_login_page() -> String {
+    let login_html = String::from(crate::login::LOGIN_PAGE_HTML)
+        .replace("{{ .baseURL }}", "BASEURL")
+        .replace("{{ .clientID }}", "CLIENTID")
+        .replace("{{ .issuer }}", "ISSUER")
+        .replace("{{ .redirectUri }}", "REDIRECTURI");
+
+    login_html
+}
+
+fn read_values() -> Result<HashMap> {
+    let file = File::open("values.env")?;
+    let reader = BufReader::new(file).lines();
 }
