@@ -4,11 +4,14 @@ fn main() {
     if args.len() < 2 {
         eprintln!(
             r#"Give shell command that should be executed by the service as parameter
-        {} -- "pwd;ls" "#,
+{} pwd; ls && echo "OK" "#,
             args[0]
         );
         std::process::exit(1);
     }
+
+    let args = args[1..].join(" ");
+
     println!(
         r#"
 [Unit]
@@ -21,6 +24,6 @@ ExecStart=/bin/bash -c "{}"
 [Install]
 WantedBy=multi-user.target
 "#,
-        args[1]
+        args
     );
 }
