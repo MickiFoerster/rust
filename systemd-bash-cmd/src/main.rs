@@ -16,9 +16,11 @@ fn main() {
         r#"
 [Unit]
 Description=Bash command executed by Systemd service
+# RequiresMountsFor=/mnt/nfs_mounted_folder       If NFS mounted directory is a dependency
 
 [Service]
 Type=simple
+# ExecStartPre=/bin/sleep 30    If pause is needed before start
 ExecStart=/bin/bash -c "{}"
 
 [Install]
