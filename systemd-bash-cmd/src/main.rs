@@ -16,12 +16,17 @@ fn main() {
         r#"
 [Unit]
 Description=Bash command executed by Systemd service
+# Wants=network-online.target
+# After=network-online.target
 # RequiresMountsFor=/mnt/nfs_mounted_folder       If NFS mounted directory is a dependency
 
 [Service]
 Type=simple
 # ExecStartPre=/bin/sleep 30    If pause is needed before start
 ExecStart=/bin/bash -c "{}"
+
+#User=user
+#Group=user
 
 [Install]
 WantedBy=multi-user.target
