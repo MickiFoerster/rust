@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{} : {}", f.path.display(), f.create_date);
     }
 
-    move_files_to_dest_dir(files, Path::new("/tmp/asdf"))?;
+    copy_files_to_dest_dir(files, Path::new("/tmp/asdf"))?;
 
     Ok(())
 }

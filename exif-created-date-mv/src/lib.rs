@@ -9,17 +9,24 @@ use walkdir::WalkDir;
 pub struct MediaFile {
     pub name: String,
     pub path: PathBuf,
+    pub len: u64,
     pub create_date: DateTime<Utc>,
 }
 
-pub fn get_creation_time(path: &Path) -> Option<DateTime<Utc>> {
+fn get_media_file(path: &Path) -> Option<MediaFile> {
     let file = std::fs::File::open(path).ok()?;
     let mut bufreader = std::io::BufReader::new(&file);
     let exifreader = exif::Reader::new();
     let exif = exifreader.read_from_container(&mut bufreader).ok()?;
     let f = exif.get_field(Tag::DateTimeOriginal, In::PRIMARY)?;
     let date_str = format!("{}Z", f.display_value());
-    DateTime::from_str(&date_str).ok()
+
+    Some(MediaFile {
+        name: path.file_name()?.to_string_lossy().into(),
+        path: PathBuf::from(path),
+        len: file.metadata().ok()?.len(),
+        create_date: DateTime::from_str(&date_str).ok()?,
+    })
 }
 
 pub fn recursive_search(path: &Path) -> Vec<MediaFile> {
@@ -33,13 +40,7 @@ pub fn recursive_search(path: &Path) -> Vec<MediaFile> {
         })
     {
         let path = entry.path().to_owned();
-        if let Some(create_date) = get_creation_time(&path) {
-            let file = MediaFile {
-                name: entry.file_name().to_str().unwrap_or_default().into(),
-                path,
-                create_date,
-            };
-
+        if let Some(file) = get_media_file(&path) {
             files.push(file);
         }
     }
@@ -47,14 +48,18 @@ pub fn recursive_search(path: &Path) -> Vec<MediaFile> {
     files
 }
 
-pub fn move_files_to_dest_dir(
+pub fn copy_files_to_dest_dir(
     files: Vec<MediaFile>,
     dest_dir: &Path,
 ) -> Result<(), std::io::Error> {
     for f in files.iter() {
         let path = get_dest_dir_path(dest_dir, &f.create_date);
-        println!("path: {}", path.display());
-        std::fs::create_dir_all(path).expect("directory cannot be created");
+        let dest_file_path = path.join(&f.name);
+        println!("path: {}", dest_file_path.display());
+
+        std::fs::create_dir_all(&path)?;
+        let expected_len = std::fs::copy(&f.path, &dest_file_path)?;
+        assert_eq!(f.len, expected_len);
     }
 
     Ok(())
