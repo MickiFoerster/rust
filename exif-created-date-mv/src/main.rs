@@ -3,19 +3,18 @@ use std::path::Path;
 use exif_created_date_mv::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args : Vec<String> = std::env::args().collect();
+    let args: Vec<String> = std::env::args().collect();
     if args.len() != 3 {
-        eprintln!("syntax error: {} <SOURCE FOLDER> <DESTINATION FOLDER>", args[0]);
+        eprintln!(
+            "syntax error: {} <SOURCE FOLDER> <DESTINATION FOLDER>",
+            args[0]
+        );
         std::process::exit(0);
     }
     let source_dir = &args[1];
     let dest_dir = &args[2];
 
     let files = recursive_search(Path::new(source_dir));
-    for f in files.iter() {
-        println!("{} : {}", f.path.display(), f.create_date);
-    }
-
     copy_files_to_dest_dir(files, Path::new(dest_dir))?;
 
     Ok(())
