@@ -54,7 +54,8 @@ pub fn copy_files_to_dest_dir(
 ) -> Result<(), std::io::Error> {
     for f in files.iter() {
         let path = get_dest_dir_path(dest_dir, &f.create_date);
-        let dest_file_path = path.join(&f.name);
+        let new_filename = get_dest_filename(&f.name, f.create_date);
+        let dest_file_path = path.join(new_filename);
         println!("path: {}", dest_file_path.display());
 
         std::fs::create_dir_all(&path)?;
@@ -65,9 +66,15 @@ pub fn copy_files_to_dest_dir(
     Ok(())
 }
 
+fn get_dest_filename(old_filename: &str, d: DateTime<Utc>) -> PathBuf {
+    let new_filename = format!("{:04}-{:02}-{:02}_{:02}_{:02}-{:02}" , d.year() , d.month() , d.day() , d.hour() , d.minute(), old_filename );
+
+    PathBuf::from(new_filename)
+}
+
 fn get_dest_dir_path(base_dir: &Path, date: &DateTime<Utc>) -> PathBuf {
     base_dir
         .join(format!("{:04}", date.year()))
         .join(format!("{:02}", date.month()))
-        .join(format!("{:02}", date.day()))
+        //.join(format!("{:02}", date.day()))
 }
