@@ -89,6 +89,26 @@ pub fn copy_files_to_dest_dir(
             None => {
                 // create folder under dest_dir with name of parent folder of source file
                 // copy file to the created folder
+                let base_name = match f.path.parent() {
+                    Some(parent) => match parent.file_name(){
+                        Some(p) => String::from(p.to_string_lossy()),
+                        None => continue,
+                    },
+                    None => continue,
+                };
+
+                let path = dest_dir.join(base_name);
+                let dest_file_path = path.join(&f.name);
+                println!("path: {}", dest_file_path.display());
+
+                std::fs::create_dir_all(&path)?;
+                let expected_len = std::fs::copy(&f.path, &dest_file_path)?;
+                if f.len != expected_len {
+                    eprintln!(
+                        "error: number of copied bytes ({}) was expected to be {}",
+                        f.len, expected_len
+                    );
+                }
             }
         }
     }
