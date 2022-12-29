@@ -71,21 +71,14 @@ pub fn copy_files_to_dest_dir(
     dest_dir: &Path,
 ) -> Result<(), std::io::Error> {
     for f in files.iter() {
+        let path: PathBuf;
+        let dest_file_path: PathBuf;
+
         match f.create_date {
             Some(d) => {
-                let path = get_dest_dir_path(dest_dir, &d);
+                path = get_dest_dir_path(dest_dir, &d);
                 let new_filename = get_dest_filename(&f.name, d);
-                let dest_file_path = path.join(new_filename);
-                println!("path: {}", dest_file_path.display());
-
-                std::fs::create_dir_all(&path)?;
-                let expected_len = std::fs::copy(&f.path, &dest_file_path)?;
-                if f.len != expected_len {
-                    eprintln!(
-                        "error: number of copied bytes ({}) was expected to be {}",
-                        f.len, expected_len
-                    );
-                }
+                dest_file_path = path.join(new_filename);
             }
             None => {
                 // create folder under dest_dir with name of parent folder of source file
@@ -96,21 +89,39 @@ pub fn copy_files_to_dest_dir(
                     .parent()
                     .expect("cannot get parent folder");
 
-                let path = dest_dir.join(prefix);
-                let dest_file_path = path.join(&f.name);
-                println!("path: {}", dest_file_path.display());
-                std::fs::create_dir_all(&path)?;
-
-                // copy file to the created folder
-                let expected_len = std::fs::copy(&f.path, &dest_file_path)?;
-                if f.len != expected_len {
-                    eprintln!(
-                        "error: number of copied bytes ({}) was expected to be {}",
-                        f.len, expected_len
-                    );
-                }
+                path = dest_dir.join(prefix);
+                dest_file_path = path.join(&f.name);
             }
         }
+
+        if let Err(err) = copy_media_file(&path, &f.path, &dest_file_path, f.len) {
+            eprintln!(
+                "error: file {} could not be copied: {}",
+                f.path.display(),
+                err
+            );
+            continue;
+        }
+    }
+
+    Ok(())
+}
+
+fn copy_media_file(
+    path: &Path,
+    file_source_path: &Path,
+    file_dest_path: &Path,
+    file_len: u64,
+) -> Result<(), std::io::Error> {
+    println!("path: {}", file_dest_path.display());
+    std::fs::create_dir_all(path)?;
+    let expected_len = std::fs::copy(&file_source_path, file_dest_path)?;
+    if file_len != expected_len {
+        eprintln!(
+            "error: number of copied bytes ({}) was expected to be {}",
+            file_len, expected_len
+        );
+        return Err(std::io::Error::last_os_error());
     }
 
     Ok(())
