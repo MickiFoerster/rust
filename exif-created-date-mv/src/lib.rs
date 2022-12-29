@@ -67,6 +67,7 @@ pub fn recursive_search(path: &Path) -> Vec<MediaFile> {
 
 pub fn copy_files_to_dest_dir(
     files: Vec<MediaFile>,
+    source_dir: &Path,
     dest_dir: &Path,
 ) -> Result<(), std::io::Error> {
     for f in files.iter() {
@@ -88,20 +89,19 @@ pub fn copy_files_to_dest_dir(
             }
             None => {
                 // create folder under dest_dir with name of parent folder of source file
-                // copy file to the created folder
-                let base_name = match f.path.parent() {
-                    Some(parent) => match parent.file_name(){
-                        Some(p) => String::from(p.to_string_lossy()),
-                        None => continue,
-                    },
-                    None => continue,
-                };
+                let prefix = f
+                    .path
+                    .strip_prefix(source_dir)
+                    .expect("cannot extract path prefix")
+                    .parent()
+                    .expect("cannot get parent folder");
 
-                let path = dest_dir.join(base_name);
+                let path = dest_dir.join(prefix);
                 let dest_file_path = path.join(&f.name);
                 println!("path: {}", dest_file_path.display());
-
                 std::fs::create_dir_all(&path)?;
+
+                // copy file to the created folder
                 let expected_len = std::fs::copy(&f.path, &dest_file_path)?;
                 if f.len != expected_len {
                     eprintln!(

@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dest_dir = &args[2];
 
     let files = recursive_search(Path::new(source_dir));
-    copy_files_to_dest_dir(files, Path::new(dest_dir))?;
+    copy_files_to_dest_dir(files, Path::new(source_dir), Path::new(dest_dir))?;
 
     Ok(())
 }
