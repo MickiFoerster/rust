@@ -14,8 +14,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source_dir = &args[1];
     let dest_dir = &args[2];
 
-    let files = recursive_search(Path::new(source_dir));
-    copy_files_to_dest_dir(files, Path::new(source_dir), Path::new(dest_dir))?;
+    let result = copy_files_to_dest_dir(Path::new(source_dir), Path::new(dest_dir));
 
-    Ok(())
+    match result {
+        Ok(n) => {
+            println!("{} files have been copied.", n);
+            Ok(())
+        }
+        Err(err) => {
+            eprintln!("error while copying files: {}", err);
+            Err(Box::new(err))
+        }
+    }
 }

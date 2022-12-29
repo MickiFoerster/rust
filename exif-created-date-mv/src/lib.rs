@@ -35,7 +35,7 @@ fn get_media_file(path: &Path) -> Option<MediaFile> {
     }
 }
 
-pub fn recursive_search(path: &Path) -> Vec<MediaFile> {
+fn recursive_search(path: &Path) -> Vec<MediaFile> {
     let mut files = Vec::new();
     for entry in WalkDir::new(path)
         .follow_links(true)
@@ -65,11 +65,14 @@ pub fn recursive_search(path: &Path) -> Vec<MediaFile> {
     files
 }
 
-pub fn copy_files_to_dest_dir(
-    files: Vec<MediaFile>,
-    source_dir: &Path,
-    dest_dir: &Path,
-) -> Result<(), std::io::Error> {
+pub fn copy_files_to_dest_dir(source_dir: &Path, dest_dir: &Path) -> Result<usize, std::io::Error> {
+    let files = recursive_search(Path::new(source_dir));
+    let n = files.len();
+    println!(
+        "Recursive search has been found {} files. Now copying starts ...",
+        n
+    );
+
     for f in files.iter() {
         let path: PathBuf;
         let dest_file_path: PathBuf;
@@ -104,7 +107,7 @@ pub fn copy_files_to_dest_dir(
         }
     }
 
-    Ok(())
+    Ok(n)
 }
 
 fn copy_media_file(
