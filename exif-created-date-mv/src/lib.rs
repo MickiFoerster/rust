@@ -1,8 +1,10 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::thread;
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
+use crossbeam::channel;
 use exif::{In, Tag};
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
@@ -50,8 +52,7 @@ fn get_media_file(path: &Path) -> Option<MediaFile> {
     }
 }
 
-fn recursive_search(path: &Path) -> Vec<MediaFile> {
-    let mut files = Vec::new();
+fn recursive_search(path: &Path, ch: channel::Sender<MediaFile>) {
     for entry in WalkDir::new(path)
         .follow_links(true)
         .into_iter()
@@ -73,22 +74,20 @@ fn recursive_search(path: &Path) -> Vec<MediaFile> {
         }
         let path = entry.path().to_owned();
         if let Some(file) = get_media_file(&path) {
-            files.push(file);
+            ch.send(file).expect("could not send file via channel");
         }
     }
-
-    files
 }
 
-pub fn copy_files_to_dest_dir(source_dir: &Path, dest_dir: &Path) -> Result<usize, std::io::Error> {
-    let files = recursive_search(Path::new(source_dir));
-    let n = files.len();
-    println!(
-        "Recursive search has been found {} files. Now copying starts ...",
-        n
-    );
+pub fn copy_files_to_dest_dir(source_dir: &Path, dest_dir: &Path) -> Result<(), std::io::Error> {
+    let (ch_in, ch_out) = channel::bounded(0);
 
-    for f in files.iter() {
+    let p = PathBuf::from(source_dir);
+    let thread = thread::spawn(move || {
+        recursive_search(&p, ch_in);
+    });
+
+    for f in ch_out.iter() {
         let path: PathBuf;
         let dest_file_path: PathBuf;
 
@@ -122,7 +121,9 @@ pub fn copy_files_to_dest_dir(source_dir: &Path, dest_dir: &Path) -> Result<usiz
         }
     }
 
-    Ok(n)
+    thread.join().expect("could not join worker thread");
+
+    Ok(())
 }
 
 fn copy_media_file(

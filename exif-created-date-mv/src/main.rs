@@ -17,8 +17,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = copy_files_to_dest_dir(Path::new(source_dir), Path::new(dest_dir));
 
     match result {
-        Ok(n) => {
-            println!("{} files have been copied.", n);
+        Ok(()) => {
+            println!("All files have been copied.");
             Ok(())
         }
         Err(err) => {
