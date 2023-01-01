@@ -20,10 +20,30 @@ pub struct MediaFile {
 
 fn get_hash_of_file(path: &Path) -> Option<String> {
     let mut file = std::fs::File::open(path).ok()?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).ok()?;
+    let len = file.metadata().ok()?.len();
+
+    if len > /* 100mb */ 1024*1024*100 {
+        eprintln!(
+            "File {} has size over 1mb and hash won't be computed",
+            path.display()
+        );
+        return None;
+    }
+
+    let mut buffer = [0; 4096];
     let mut hasher = Sha256::new();
-    hasher.update(buffer);
+
+    loop {
+        match file.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(n) => hasher.update(&buffer[0..n]),
+            Err(err) => {
+                eprintln!("error: could not read file {}: {}", path.display(), err);
+                return None;
+            }
+        }
+    }
+
     Some(format!("{:X}", hasher.finalize()))
 }
 
@@ -40,7 +60,14 @@ fn get_media_file(path: &Path) -> Option<MediaFile> {
 
     let mut bufreader = std::io::BufReader::new(&file);
     let exifreader = exif::Reader::new();
-    let exif = exifreader.read_from_container(&mut bufreader).ok()?;
+    let exif = match exifreader.read_from_container(&mut bufreader) {
+        Ok(v) => v,
+        Err(err) => {
+            eprintln!("error: could not read exif data: {}", err);
+            return None;
+        }
+    };
+
     match exif.get_field(Tag::DateTimeOriginal, In::PRIMARY) {
         Some(f) => {
             let date_str = format!("{}Z", f.display_value());
@@ -91,6 +118,7 @@ pub fn copy_files_to_dest_dir(source_dir: &Path, dest_dir: &Path) -> Result<(), 
         let path: PathBuf;
         let dest_file_path: PathBuf;
 
+        println!("Processing file {}", f.path.display());
         match f.create_date {
             Some(d) => {
                 path = get_dest_dir_path(dest_dir, &d);
@@ -117,7 +145,6 @@ pub fn copy_files_to_dest_dir(source_dir: &Path, dest_dir: &Path) -> Result<(), 
                 f.path.display(),
                 err
             );
-            continue;
         }
     }
 
