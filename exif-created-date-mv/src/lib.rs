@@ -33,10 +33,11 @@ fn get_hash_of_file(path: &Path) -> Option<String> {
     let mut file = std::fs::File::open(path).ok()?;
     let len = file.metadata().ok()?.len();
 
-    if len > /* 100mb */ 1024*1024*100 {
+    let max_size=1024*1024*100;
+    if len > max_size {
         eprintln!(
-            "File {} has size over 1mb and hash won't be computed",
-            path.display()
+            "File {} has size over {}mb and hash won't be computed",
+            path.display(), max_size/(1024*1024)
         );
         return None;
     }
