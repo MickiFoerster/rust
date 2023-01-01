@@ -1,13 +1,13 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::thread;
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use crossbeam::channel;
-use exif::{In, Tag};
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
+
+mod read_exif;
 
 #[derive(Debug, Clone)]
 pub struct MediaFile {
@@ -18,6 +18,17 @@ pub struct MediaFile {
     pub hash: Option<String>,
 }
 
+fn get_media_file(path: &Path) -> Option<MediaFile> {
+    let file_length = std::fs::File::open(path).ok()?.metadata().ok()?.len();
+
+    Some(MediaFile {
+        name: path.file_name()?.to_string_lossy().into(),
+        path: PathBuf::from(path),
+        len: file_length,
+        hash: get_hash_of_file(path),
+        create_date: read_exif::get_created_date(path),
+    })
+}
 fn get_hash_of_file(path: &Path) -> Option<String> {
     let mut file = std::fs::File::open(path).ok()?;
     let len = file.metadata().ok()?.len();
@@ -45,38 +56,6 @@ fn get_hash_of_file(path: &Path) -> Option<String> {
     }
 
     Some(format!("{:X}", hasher.finalize()))
-}
-
-fn get_media_file(path: &Path) -> Option<MediaFile> {
-    let file = std::fs::File::open(path).ok()?;
-
-    let mut media_file = MediaFile {
-        name: path.file_name()?.to_string_lossy().into(),
-        path: PathBuf::from(path),
-        len: file.metadata().ok()?.len(),
-        hash: get_hash_of_file(path),
-        create_date: None,
-    };
-
-    let mut bufreader = std::io::BufReader::new(&file);
-    let exifreader = exif::Reader::new();
-    let exif = match exifreader.read_from_container(&mut bufreader) {
-        Ok(v) => v,
-        Err(err) => {
-            eprintln!("error: could not read exif data: {}", err);
-            return None;
-        }
-    };
-
-    match exif.get_field(Tag::DateTimeOriginal, In::PRIMARY) {
-        Some(f) => {
-            let date_str = format!("{}Z", f.display_value());
-            media_file.create_date = DateTime::from_str(&date_str).ok();
-
-            Some(media_file)
-        }
-        None => Some(media_file),
-    }
 }
 
 fn recursive_search(path: &Path, ch: channel::Sender<MediaFile>) {
