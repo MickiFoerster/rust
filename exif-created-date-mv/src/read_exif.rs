@@ -12,10 +12,10 @@ pub fn get_created_date(path: &Path) -> Option<DateTime<Utc>> {
     let exif = match exifreader.read_from_container(&mut bufreader) {
         Ok(v) => v,
         Err(err) => {
-            // Use fallback exiftool 
+            // Use fallback exiftool
             match exiftool(path, "Date/Time Original") {
                 Some(v) => {
-                    let date = v[0..10].replace(":", "-");
+                    let date = v[0..10].replace(':', "-");
                     let substr = &v[11..];
                     let t = match substr.find('+') {
                         Some(pos) => &substr[0..pos],
@@ -24,13 +24,12 @@ pub fn get_created_date(path: &Path) -> Option<DateTime<Utc>> {
                     let date_str = format!("{} {}Z", date, t);
                     let date = DateTime::from_str(&date_str).ok();
                     return date;
-                },
+                }
                 None => {
                     eprintln!("error: could not read exif data: {}", err);
                     return None;
                 }
             }
-
         }
     };
 
@@ -56,7 +55,7 @@ fn exiftool(path: &Path, key_pattern: &str) -> Option<String> {
             None => continue,
         };
         let key = line[0..pos].trim();
-        let value = line[pos+1..].trim();
+        let value = line[pos + 1..].trim();
         if key.eq(key_pattern) {
             return Some(String::from(value));
         }
