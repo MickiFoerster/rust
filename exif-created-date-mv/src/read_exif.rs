@@ -5,7 +5,6 @@ use chrono::{DateTime, Utc};
 use exif::{In, Tag};
 
 pub fn get_created_date(path: &Path) -> Option<DateTime<Utc>> {
-    println!("get_created_date: {}", path.display());
     let file = std::fs::File::open(path).ok()?;
     let mut bufreader = std::io::BufReader::new(&file);
     let exifreader = exif::Reader::new();

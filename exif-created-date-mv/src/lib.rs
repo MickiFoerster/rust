@@ -19,6 +19,7 @@ pub struct MediaFile {
 }
 
 fn get_media_file(path: &Path) -> Option<MediaFile> {
+    println!("Create media file from {}", path.display());
     let file_length = std::fs::File::open(path).ok()?.metadata().ok()?.len();
 
     Some(MediaFile {
@@ -60,7 +61,7 @@ fn get_hash_of_file(path: &Path) -> Option<String> {
     Some(format!("{:X}", hasher.finalize()))
 }
 
-fn recursive_search(path: &Path, ch: channel::Sender<MediaFile>) {
+fn recursive_search(path: &Path, ch: channel::Sender<PathBuf>) {
     for entry in WalkDir::new(path)
         .follow_links(true)
         .into_iter()
@@ -81,9 +82,7 @@ fn recursive_search(path: &Path, ch: channel::Sender<MediaFile>) {
             }
         }
         let path = entry.path().to_owned();
-        if let Some(file) = get_media_file(&path) {
-            ch.send(file).expect("could not send file via channel");
-        }
+        ch.send(path).expect("could not send path via channel");
     }
 }
 
@@ -91,45 +90,65 @@ pub fn copy_files_to_dest_dir(source_dir: &Path, dest_dir: &Path) -> Result<(), 
     let (ch_in, ch_out) = channel::bounded(0);
 
     let p = PathBuf::from(source_dir);
+
     let thread = thread::spawn(move || {
         recursive_search(&p, ch_in);
     });
 
-    for f in ch_out.iter() {
-        let path: PathBuf;
-        let dest_file_path: PathBuf;
+    let mut threads = Vec::new();
+    threads.push(thread);
 
-        println!("Processing file {}", f.path.display());
-        match f.create_date {
-            Some(d) => {
-                path = get_dest_dir_path(dest_dir, &d);
-                let new_filename = get_dest_filename(&f, d);
-                dest_file_path = path.join(new_filename);
+    for i in 0..num_cpus::get() { 
+        println!("{:?}", i);
+        let ch_out_for_worker_thread = ch_out.clone();
+        let dest_dir = PathBuf::from(dest_dir);
+        let source_dir = PathBuf::from(source_dir);
+        let thread = thread::spawn(move || {
+            for path in ch_out_for_worker_thread.iter() {
+                let f = match get_media_file(&path) {
+                    Some(v) => v,
+                    None => continue,
+                };
+                let path: PathBuf;
+                let dest_file_path: PathBuf;
+
+                match f.create_date {
+                    Some(d) => {
+                        path = get_dest_dir_path(&dest_dir, &d);
+                        let new_filename = get_dest_filename(&f, d);
+                        dest_file_path = path.join(new_filename);
+                    }
+                    None => {
+                        // create folder under dest_dir with name of parent folder of source file
+                        let prefix = f
+                            .path
+                            .strip_prefix(&source_dir)
+                            .expect("cannot extract path prefix")
+                            .parent()
+                            .expect("cannot get parent folder");
+
+                        path = dest_dir.join("unknown").join(prefix);
+                        dest_file_path = path.join(&f.name);
+                    }
+                }
+
+                if let Err(err) = copy_media_file(&path, &f.path, &dest_file_path, f.len) {
+                    eprintln!(
+                        "error: file {} could not be copied: {}",
+                        f.path.display(),
+                        err
+                        );
+                }
             }
-            None => {
-                // create folder under dest_dir with name of parent folder of source file
-                let prefix = f
-                    .path
-                    .strip_prefix(source_dir)
-                    .expect("cannot extract path prefix")
-                    .parent()
-                    .expect("cannot get parent folder");
 
-                path = dest_dir.join(prefix);
-                dest_file_path = path.join(&f.name);
-            }
-        }
 
-        if let Err(err) = copy_media_file(&path, &f.path, &dest_file_path, f.len) {
-            eprintln!(
-                "error: file {} could not be copied: {}",
-                f.path.display(),
-                err
-            );
-        }
+        });
+        threads.push(thread);
     }
 
-    thread.join().expect("could not join worker thread");
+    for t in threads {
+        t.join().expect("could not join worker thread");
+    }
 
     Ok(())
 }
@@ -167,7 +186,12 @@ fn get_dest_filename(file: &MediaFile, d: DateTime<Utc>) -> PathBuf {
         d.day(),
         d.hour(),
         d.minute(),
-        file.hash.clone().unwrap_or_default(),
+        file.hash.clone().unwrap_or_else(|| {
+            match file.name.find('.') {
+                Some(pos) => String::from(&file.name[0..pos]),
+                None => file.name.clone(),
+            }
+        }),
         filename_ext.to_lowercase()
     );
 
