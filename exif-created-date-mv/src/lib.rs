@@ -131,7 +131,7 @@ pub fn copy_files_to_dest_dir(source_dir: &Path, dest_dir: &Path) -> Result<(), 
                         dest_file_path = path.join(&f.name);
                     }
                 }
-
+panic!("copying concurrently to the same file is not what we want");
                 if let Err(err) = copy_media_file(&path, &f.path, &dest_file_path, f.len) {
                     eprintln!(
                         "error: file {} could not be copied: {}",
