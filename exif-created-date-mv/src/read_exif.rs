@@ -39,15 +39,15 @@ pub fn get_created_date(path: &Path) -> Option<DateTime<Utc>> {
 
 fn exiftool(path: &Path, key_pattern: &str) -> Option<String> {
     let mut cmd = std::process::Command::new("exiftool");
-    let output = match cmd.arg(path).output() {
+    let output = match cmd.arg(path.canonicalize().expect("canonicalize failed")).output() {
         Ok(v) => v,
         Err(err) => {
             eprintln!("{:?} error: {err}", cmd);
-            std::process::exit(1);
+            return None;
         }
     };
 
-    let output = std::str::from_utf8(&output.stdout).expect("UTF-8 encoded string expected");
+    let output = std::str::from_utf8(&output.stdout).ok()?;
     for line in output.lines() {
         let pos = match line.find(':') {
             Some(p) => p,

@@ -44,7 +44,7 @@ fn get_hash_of_file(path: &Path) -> Option<String> {
         return None;
     }
 
-    let mut buffer = [0; 4096];
+    let mut buffer = [0; 1024*1024*1024];
     let mut hasher = Sha256::new();
 
     loop {
@@ -131,7 +131,7 @@ pub fn copy_files_to_dest_dir(source_dir: &Path, dest_dir: &Path) -> Result<(), 
                         dest_file_path = path.join(&f.name);
                     }
                 }
-panic!("copying concurrently to the same file is not what we want");
+
                 if let Err(err) = copy_media_file(&path, &f.path, &dest_file_path, f.len) {
                     eprintln!(
                         "error: file {} could not be copied: {}",
