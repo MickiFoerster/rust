@@ -2,7 +2,15 @@ use std::process::Command;
 
 fn main() {
     let mut cmd = Command::new("exiftool");
-    let file = "/home/micki/Pictures/test/14340dca33f9efa846b476924129ac4316d7e658768f5552d83c200a24278d41.mts";
+    match cmd.output() {
+        Ok(v) => v,
+        Err(err) => {
+            eprintln!("{:?} probably binary is not installed or not in PATH: {err}", cmd);
+            std::process::exit(1);
+        }
+    };
+
+    let file = "/home/user/Pictures/test/14340dca33f9efa846b476924129ac4316d7e658768f5552d83c200a24278d41.mts";
     let output = match cmd.arg(file).output() {
         Ok(v) => v,
         Err(err) => {
