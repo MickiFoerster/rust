@@ -39,6 +39,11 @@ pub fn get_created_date(path: &Path) -> Option<DateTime<Utc>> {
 
 fn exiftool(path: &Path, key_pattern: &str) -> Option<String> {
     let mut cmd = std::process::Command::new("exiftool");
+    if let Err(err) = cmd.status() {
+            eprintln!("{:?} error: {err}", cmd);
+            return None;
+    }
+
     let output = match cmd.arg(path.canonicalize().expect("canonicalize failed")).output() {
         Ok(v) => v,
         Err(err) => {
