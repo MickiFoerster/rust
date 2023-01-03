@@ -53,7 +53,7 @@ fn get_hash_of_file(path: &Path) -> Option<String> {
         return None;
     }
 
-    let mut buffer = [0; 1024 * 1024 * 512];
+    let mut buffer = [0; 1024 * 1024];
     let mut hasher = Sha256::new();
 
     loop {
