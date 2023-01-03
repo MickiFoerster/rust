@@ -1,5 +1,7 @@
+use std::collections::HashSet;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
@@ -22,19 +24,26 @@ fn get_media_file(path: &Path) -> Option<MediaFile> {
     println!("Create media file from {}", path.display());
     let file_length = std::fs::File::open(path).ok()?.metadata().ok()?.len();
 
+    let create_date = read_exif::get_created_date(path);
+    let mut hash = None;
+    if create_date.is_some() {
+        hash = get_hash_of_file(path);
+    }
+
     Some(MediaFile {
         name: path.file_name()?.to_string_lossy().into(),
         path: PathBuf::from(path),
         len: file_length,
-        hash: get_hash_of_file(path),
-        create_date: read_exif::get_created_date(path),
+        hash,
+        create_date,
     })
 }
+
 fn get_hash_of_file(path: &Path) -> Option<String> {
     let mut file = std::fs::File::open(path).ok()?;
     let len = file.metadata().ok()?.len();
 
-    let max_size=1024*1024*1024*4; /* 4gb */
+    let max_size = 1024 * 1024 * 1024 * 4; /* 4gb */
     if len > max_size {
         eprintln!(
             "File {} has size over {}mb and hash won't be computed",
@@ -44,7 +53,7 @@ fn get_hash_of_file(path: &Path) -> Option<String> {
         return None;
     }
 
-    let mut buffer = [0; 1024*1024*512];
+    let mut buffer = [0; 1024 * 1024 * 512];
     let mut hasher = Sha256::new();
 
     loop {
@@ -98,11 +107,15 @@ pub fn copy_files_to_dest_dir(source_dir: &Path, dest_dir: &Path) -> Result<(), 
     let mut threads = Vec::new();
     threads.push(thread);
 
-    for i in 0..num_cpus::get() { 
+    let target_file_set = Arc::new(Mutex::new(HashSet::new()));
+
+    for i in 0..num_cpus::get() {
         println!("{:?}", i);
         let ch_out_for_worker_thread = ch_out.clone();
         let dest_dir = PathBuf::from(dest_dir);
         let source_dir = PathBuf::from(source_dir);
+        let thread_local_mutex = Arc::clone(&target_file_set);
+
         let thread = thread::spawn(move || {
             for path in ch_out_for_worker_thread.iter() {
                 let f = match get_media_file(&path) {
@@ -132,16 +145,32 @@ pub fn copy_files_to_dest_dir(source_dir: &Path, dest_dir: &Path) -> Result<(), 
                     }
                 }
 
+                // store path in set of processed files to prevent threads
+                // concurrently copying the same file
+                let mut already_copied = false;
+                {
+                    let mut set = thread_local_mutex.lock().expect("could not lock mutex");
+                    if !set.contains(&dest_file_path) {
+                        eprintln!("Insert {} into hashmap", dest_file_path.display());
+                        set.insert(dest_file_path.clone());
+                    } else {
+                        already_copied = true;
+                        eprintln!("{} already contained in hashmap", dest_file_path.display());
+                    }
+                }
+
+                if already_copied {
+                    continue;
+                }
+
                 if let Err(err) = copy_media_file(&path, &f.path, &dest_file_path, f.len) {
                     eprintln!(
                         "error: file {} could not be copied: {}",
                         f.path.display(),
                         err
-                        );
+                    );
                 }
             }
-
-
         });
         threads.push(thread);
     }
