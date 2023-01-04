@@ -13,6 +13,10 @@ pub fn get_created_date(path: &Path) -> Option<DateTime<Utc>> {
         Err(err) => {
             // Use fallback exiftool
             match exiftool(path, "Date/Time Original") {
+                Some(v) if v.len() < 10 => {
+                    eprintln!("error: invalid date format in exif data: {}", v);
+                    return None;
+                }
                 Some(v) => {
                     let date = v[0..10].replace(':', "-");
                     let substr = &v[11..];
@@ -39,13 +43,14 @@ pub fn get_created_date(path: &Path) -> Option<DateTime<Utc>> {
 
 fn exiftool(path: &Path, key_pattern: &str) -> Option<String> {
     let mut cmd = std::process::Command::new("exiftool");
-    if let Err(err) = cmd.status() {
+    if let Err(err) = cmd.output() {
         eprintln!("{:?} error: {err}", cmd);
         return None;
     }
 
+    println!("exiftool was found. Provide path '{}' to exiftool now.", path.display());
     let output = match cmd
-        .arg(path.canonicalize().expect("canonicalize failed"))
+        .arg(path)
         .output()
     {
         Ok(v) => v,
