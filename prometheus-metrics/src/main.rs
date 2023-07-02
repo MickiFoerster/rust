@@ -1,12 +1,8 @@
 use axum::{
-    extract::MatchedPath,
-    http::Request,
-    middleware::{self, Next},
-    response::IntoResponse,
-    routing::get,
+    extract::MatchedPath, http::Request, middleware::Next, response::IntoResponse, routing::get,
     Router,
 };
-use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use std::{
     future::ready,
     net::SocketAddr,
@@ -34,6 +30,32 @@ fn main_app() -> Router {
             tokio::time::sleep(Duration::from_millis(500)).await;
             metrics::increment_counter!("counter_all_fivehundret_ms_total", &[("key", "value")]);
         }
+    });
+    tokio::spawn(async move {
+        tracing::trace!("concurrent thread for gauge ...");
+
+        metrics::gauge!("gauge_with_seven_values", 2.);
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        metrics::gauge!("gauge_with_seven_values", 13.);
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        metrics::gauge!("gauge_with_seven_values", 5.);
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        metrics::gauge!("gauge_with_seven_values", 17.);
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        metrics::gauge!("gauge_with_seven_values", 7.);
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        metrics::gauge!("gauge_with_seven_values", 3.);
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        metrics::gauge!("gauge_with_seven_values", 11.);
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        tracing::trace!("gauge values written");
     });
 
     Router::new()
