@@ -1,17 +1,24 @@
 #[tokio::main]
 async fn main() {
-    let (tx, rx) = tokio::sync::oneshot::channel(); 
+    let (tx, rx) = tokio::sync::oneshot::channel();
 
     let task1 = tokio::spawn(async move {
         if let Err(e) = tx.send("Hello") {
             eprintln!("receiver dropped: {e}");
         }
+        /*
+         * tx can only used once since it was moved above
+         *
+        if let Err(e) = tx.send("World") {
+            eprintln!("receiver dropped: {e}");
+        }
+        */
     });
 
-    let task2 tokio::spawn(async move {
+    let task2 = tokio::spawn(async move {
         match rx.await {
-            Ok(v) => println!("received: {v}") ;
-            Err(e) => println!("transmitter dropped: {e}");
+            Ok(v) => println!("received: {v}"),
+            Err(e) => println!("transmitter dropped: {e}"),
         }
     });
 
