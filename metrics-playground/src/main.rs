@@ -1,3 +1,4 @@
+/// Example code found on https://carlosmv.hashnode.dev/how-to-monitor-your-axum-app-with-prometheus-and-grafana#heading-cargotoml
 use axum::{
     extract::MatchedPath,
     http::Request,
