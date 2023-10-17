@@ -20,3 +20,19 @@ async fn main() {
     }
     eprintln!("{total_bytes} bytes read");
 }
+
+async fn read_file() -> tokio::io::Result<()> {
+    let mut f = tokio::fs::File::open("foo.txt").await?;
+
+    // read up to 10 bytes
+    // let mut buffer = [0; 10];
+    // let n = f.read(&mut buffer).await?;
+    // println!("read bytes: {:?}", &buffer[..n]);
+
+    // read the whole file
+    let mut buffer = Vec::new();
+    f.read_to_end(&mut buffer).await?;
+    println!("read bytes: {:?}", buffer);
+
+    Ok(())
+}
