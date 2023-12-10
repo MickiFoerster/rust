@@ -1,11 +1,14 @@
-use std::process::Command;
+use std::process::{Command, ExitStatus};
 
 fn main() {
     let mut cmd = Command::new("exiftool");
     match cmd.output() {
         Ok(v) => v,
         Err(err) => {
-            eprintln!("{:?} probably binary is not installed or not in PATH: {err}", cmd);
+            eprintln!(
+                "{:?} probably binary is not installed or not in PATH: {err}",
+                cmd
+            );
             std::process::exit(1);
         }
     };
@@ -18,18 +21,26 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let output = std::str::from_utf8(&output.stdout).expect("UTF-8 encoded string expected");
 
-    for line in output.lines() {
-        let pos = match line.find(':') {
-            Some(p) => p,
-            None => continue,
-        };
-        let key = line[0..pos].trim();
-        let value = line[pos+1..].trim();
-        if key == "Date/Time Original" {
-            println!("{line}");
-            println!("{}", value);
+    if cmd.status().expect("could not get exit status").success() {
+        let mut counter = 0;
+        let stdout_output =
+            std::str::from_utf8(&output.stdout).expect("UTF-8 encoded string expected");
+        for line in stdout_output.lines() {
+            counter += 1;
+            let pos = match line.find(':') {
+                Some(p) => p,
+                None => continue,
+            };
+            let key = line[0..pos].trim();
+            let value = line[pos + 1..].trim();
+            if key == "Date/Time Original" {
+                println!("{line}");
+                println!("{}", value);
+            }
         }
+        println!("{counter} lines printed");
+    } else {
+        println!("command failed");
     }
 }
