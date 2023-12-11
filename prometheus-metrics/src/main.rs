@@ -73,7 +73,7 @@ fn main_app() -> Router {
                 metrics::increment_counter!("my_testing_counter_total", &[("route", "slow")]);
             }),
         )
-    //.route_layer(middleware::from_fn(track_metrics))
+        .route_layer(middleware::from_fn(track_metrics))
 }
 
 async fn start_main_server() {
@@ -103,7 +103,7 @@ async fn main() {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "example_todos=debug,tower_http=debug".into()),
+                .unwrap_or_else(|_| "example=debug,tower_http=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -129,7 +129,7 @@ fn setup_metrics_recorder() -> PrometheusHandle {
         .unwrap()
 }
 
-async fn _track_metrics<B>(req: Request<B>, next: Next<B>) -> impl IntoResponse {
+async fn track_metrics<B>(req: Request<B>, next: Next<B>) -> impl IntoResponse {
     let start = Instant::now();
     let path = if let Some(matched_path) = req.extensions().get::<MatchedPath>() {
         matched_path.as_str().to_owned()
