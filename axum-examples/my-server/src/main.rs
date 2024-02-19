@@ -1,4 +1,4 @@
-use axum::{routing::get, Router};
+use axum::{response::Html, routing::get, Router};
 use std::net::SocketAddr;
 
 #[tokio::main]
@@ -14,7 +14,7 @@ async fn main() {
         .unwrap();
 }
 
-async fn root() -> String {
+async fn root() -> Html<String> {
     use reqwest::header::USER_AGENT;
 
     let client = reqwest::Client::new();
@@ -30,5 +30,5 @@ async fn root() -> String {
 
     let body = res.text().await.unwrap();
 
-    body
+    Html(body)
 }
