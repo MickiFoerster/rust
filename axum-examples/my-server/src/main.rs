@@ -1,12 +1,14 @@
 use axum::{response::Html, routing::get, Router};
 use std::net::SocketAddr;
 
+const PORT: u16 = 8080;
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
     let app = Router::new().route("/", get(root));
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], PORT));
     tracing::debug!("Listening on {}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
